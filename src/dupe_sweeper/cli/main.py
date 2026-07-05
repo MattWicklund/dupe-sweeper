@@ -13,9 +13,19 @@ from dupe_sweeper.engine.scanner import scan_files
 console = Console()
 
 PHOTO_EXTENSIONS = [
-    "jpg", "jpeg", "png", "heic", "tif", "tiff",
-    "webp", "raw", "cr2", "nef", "arw",
+    "jpg",
+    "jpeg",
+    "png",
+    "heic",
+    "tif",
+    "tiff",
+    "webp",
+    "raw",
+    "cr2",
+    "nef",
+    "arw",
 ]
+
 
 def format_bytes(size: int) -> str:
     units = ["B", "KB", "MB", "GB", "TB"]
@@ -103,11 +113,7 @@ def run_scan(args: argparse.Namespace) -> None:
     result = find_duplicates(files, keep=args.keep, show_progress=True)
     duplicate_groups = result.groups
 
-    duplicate_files = [
-        duplicate
-        for group in duplicate_groups
-        for duplicate in group[1:]
-    ]
+    duplicate_files = [duplicate for group in duplicate_groups for duplicate in group[1:]]
 
     recoverable_bytes = sum(file.stat().st_size for file in duplicate_files)
 
@@ -142,13 +148,15 @@ def run_scan(args: argparse.Namespace) -> None:
         console.print(
             "\n[yellow]Dry run only. "
             "Re-run with --trash or --delete to remove duplicates."
-            "[/yellow]")
+            "[/yellow]"
+        )
         console.print("[dim]Use --verbose to show every duplicate group.[/dim]")
 
 
 def run_cache_clear() -> None:
     clear_cache()
     console.print("[green]Cache cleared.[/green]")
+
 
 def run_cache_stats() -> None:
     stats = get_cache_stats()
@@ -162,6 +170,7 @@ def run_cache_stats() -> None:
     table.add_row("Size", format_bytes(int(stats["size_bytes"])))
 
     console.print(table)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(

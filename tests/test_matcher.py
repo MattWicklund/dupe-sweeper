@@ -34,9 +34,7 @@ def test_keep_original_prefers_unsuffixed_file(tmp_path: Path) -> None:
     write_file(original, content)
 
     result = find_duplicates(
-        [duplicate_1, duplicate_2, original],
-        keep="original",
-        show_progress=False
+        [duplicate_1, duplicate_2, original], keep="original", show_progress=False
     )
 
     assert result.groups[0][0] == original

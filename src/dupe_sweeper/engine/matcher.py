@@ -58,9 +58,7 @@ def get_cached_full_hash(path: Path, cache: dict) -> tuple[str, bool]:
 
 
 def find_duplicates(
-    files: list[Path],
-    keep: str = "original",
-    show_progress: bool = True
+    files: list[Path], keep: str = "original", show_progress: bool = True
 ) -> DuplicateResult:
     cache = load_cache()
 
@@ -104,10 +102,7 @@ def find_duplicates(
                 by_quick_hash[quick_hash_file(file)].append(file)
                 progress.advance(quick_task)
 
-            quick_candidate_groups = [
-                group for group in by_quick_hash.values()
-                if len(group) > 1
-            ]
+            quick_candidate_groups = [group for group in by_quick_hash.values() if len(group) > 1]
 
             for quick_group in quick_candidate_groups:
                 by_full_hash: dict[str, list[Path]] = defaultdict(list)
@@ -128,9 +123,7 @@ def find_duplicates(
 
                 for same_hash_files in by_full_hash.values():
                     if len(same_hash_files) > 1:
-                        duplicate_groups.append(
-                            sort_duplicate_group(same_hash_files, keep=keep)
-                        )
+                        duplicate_groups.append(sort_duplicate_group(same_hash_files, keep=keep))
 
     save_cache(cache)
 

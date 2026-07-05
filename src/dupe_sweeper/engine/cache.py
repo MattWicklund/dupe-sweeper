@@ -23,6 +23,7 @@ def clear_cache() -> None:
     if CACHE_PATH.exists():
         CACHE_PATH.unlink()
 
+
 def get_cache_stats() -> dict[str, int | str]:
     cache = load_cache()
 
