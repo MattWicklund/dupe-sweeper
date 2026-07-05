@@ -11,7 +11,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from dupe_sweeper.engine.cache import load_cache, save_cache
+from dupe_sweeper.engine.cache import create_cache
 from dupe_sweeper.engine.hashing import file_fingerprint, quick_hash_file, sha256_file
 from dupe_sweeper.models import DuplicateGroup, FileRecord, ScanResult
 
@@ -55,14 +55,16 @@ def sort_duplicate_group(records: list[FileRecord], keep: str) -> list[FileRecor
     raise ValueError(f"Unknown keep strategy: {keep}")
 
 
-def get_cached_full_hash(path: Path, cache: dict) -> tuple[str, bool]:
+def get_cached_full_hash(path: Path, cache) -> tuple[str, bool]:
     fingerprint = file_fingerprint(path)
 
-    if fingerprint in cache:
-        return cache[fingerprint], True
+    cached_hash = cache.get(fingerprint)
+
+    if cached_hash is not None:
+        return cached_hash, True
 
     file_hash = sha256_file(path)
-    cache[fingerprint] = file_hash
+    cache.put(fingerprint, file_hash)
 
     return file_hash, False
 
@@ -72,7 +74,7 @@ def find_duplicates(
     keep: str = "original",
     show_progress: bool = True,
 ) -> ScanResult:
-    cache = load_cache()
+    cache = create_cache()
 
     records = [
         FileRecord(
@@ -159,7 +161,7 @@ def find_duplicates(
                             )
                         )
 
-    save_cache(cache)
+    cache.save()
 
     return ScanResult(
         groups=duplicate_groups,
