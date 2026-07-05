@@ -4,7 +4,7 @@ from dupe_sweeper.engine.cache.sqlite_cache import SQLiteCache
 
 
 def create_cache() -> CacheBackend:
-    return JsonCache()
+    return SQLiteCache()
 
 
 def clear_cache() -> None:
