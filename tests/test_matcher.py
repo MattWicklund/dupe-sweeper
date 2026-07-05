@@ -19,7 +19,11 @@ def test_finds_exact_duplicates(tmp_path: Path) -> None:
     result = find_duplicates([file_a, file_b, file_c], show_progress=False)
 
     assert len(result.groups) == 1
-    assert result.groups[0] == [file_a, file_b]
+
+    group = result.groups[0]
+
+    assert group.keep.path == file_a
+    assert [duplicate.path for duplicate in group.duplicates] == [file_b]
 
 
 def test_keep_original_prefers_unsuffixed_file(tmp_path: Path) -> None:
@@ -36,7 +40,13 @@ def test_keep_original_prefers_unsuffixed_file(tmp_path: Path) -> None:
     result = find_duplicates(
         [duplicate_1, duplicate_2, original],
         keep="original",
-        show_progress=False
+        show_progress=False,
     )
 
-    assert result.groups[0][0] == original
+    group = result.groups[0]
+
+    assert group.keep.path == original
+    assert [duplicate.path for duplicate in group.duplicates] == [
+        duplicate_1,
+        duplicate_2,
+    ]

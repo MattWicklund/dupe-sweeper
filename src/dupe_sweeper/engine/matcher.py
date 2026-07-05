@@ -1,6 +1,5 @@
 import re
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
 
 from rich.progress import (
@@ -14,15 +13,7 @@ from rich.progress import (
 
 from dupe_sweeper.engine.cache import load_cache, save_cache
 from dupe_sweeper.engine.hashing import file_fingerprint, quick_hash_file, sha256_file
-
-
-@dataclass
-class DuplicateResult:
-    groups: list[list[Path]]
-    cache_hits: int
-    cache_misses: int
-    quick_hashes: int
-    full_hashes: int
+from dupe_sweeper.models import DuplicateGroup, FileRecord, ScanResult
 
 
 def finder_suffix_key(path: Path) -> tuple[bool, int, str]:
@@ -30,18 +21,36 @@ def finder_suffix_key(path: Path) -> tuple[bool, int, str]:
     return (has_finder_suffix, len(path.name), path.name.lower())
 
 
-def sort_duplicate_group(paths: list[Path], keep: str) -> list[Path]:
+def sort_duplicate_group(records: list[FileRecord], keep: str) -> list[FileRecord]:
     if keep == "original":
-        return sorted(paths, key=finder_suffix_key)
+        return sorted(records, key=lambda record: finder_suffix_key(record.path))
 
     if keep == "oldest":
-        return sorted(paths, key=lambda path: (path.stat().st_mtime_ns, path.name.lower()))
+        return sorted(
+            records,
+            key=lambda record: (
+                record.path.stat().st_mtime_ns,
+                record.path.name.lower(),
+            ),
+        )
 
     if keep == "newest":
-        return sorted(paths, key=lambda path: (-path.stat().st_mtime_ns, path.name.lower()))
+        return sorted(
+            records,
+            key=lambda record: (
+                -record.path.stat().st_mtime_ns,
+                record.path.name.lower(),
+            ),
+        )
 
     if keep == "shortest-name":
-        return sorted(paths, key=lambda path: (len(path.name), path.name.lower()))
+        return sorted(
+            records,
+            key=lambda record: (
+                len(record.path.name),
+                record.path.name.lower(),
+            ),
+        )
 
     raise ValueError(f"Unknown keep strategy: {keep}")
 
@@ -54,20 +63,29 @@ def get_cached_full_hash(path: Path, cache: dict) -> tuple[str, bool]:
 
     file_hash = sha256_file(path)
     cache[fingerprint] = file_hash
+
     return file_hash, False
 
 
 def find_duplicates(
     files: list[Path],
     keep: str = "original",
-    show_progress: bool = True
-) -> DuplicateResult:
+    show_progress: bool = True,
+) -> ScanResult:
     cache = load_cache()
 
-    by_size: dict[int, list[Path]] = defaultdict(list)
+    records = [
+        FileRecord(
+            path=file,
+            size=file.stat().st_size,
+        )
+        for file in files
+    ]
 
-    for file in files:
-        by_size[file.stat().st_size].append(file)
+    by_size: dict[int, list[FileRecord]] = defaultdict(list)
+
+    for record in records:
+        by_size[record.size].append(record)
 
     same_size_groups = [group for group in by_size.values() if len(group) > 1]
     same_size_file_count = sum(len(group) for group in same_size_groups)
@@ -76,7 +94,7 @@ def find_duplicates(
     full_hashes = 0
     cache_hits = 0
     cache_misses = 0
-    duplicate_groups: list[list[Path]] = []
+    duplicate_groups: list[DuplicateGroup] = []
 
     with Progress(
         SpinnerColumn(),
@@ -96,46 +114,56 @@ def find_duplicates(
             total=None,
         )
 
-        for same_size_files in same_size_groups:
-            by_quick_hash: dict[str, list[Path]] = defaultdict(list)
+        for same_size_records in same_size_groups:
+            by_quick_hash: dict[str, list[FileRecord]] = defaultdict(list)
 
-            for file in same_size_files:
+            for record in same_size_records:
                 quick_hashes += 1
-                by_quick_hash[quick_hash_file(file)].append(file)
+
+                record.quick_hash = quick_hash_file(record.path)
+                by_quick_hash[record.quick_hash].append(record)
+
                 progress.advance(quick_task)
 
-            quick_candidate_groups = [
-                group for group in by_quick_hash.values()
-                if len(group) > 1
-            ]
+            quick_candidate_groups = [group for group in by_quick_hash.values() if len(group) > 1]
 
             for quick_group in quick_candidate_groups:
-                by_full_hash: dict[str, list[Path]] = defaultdict(list)
+                by_full_hash: dict[str, list[FileRecord]] = defaultdict(list)
 
-                for file in quick_group:
+                for record in quick_group:
                     full_hashes += 1
-                    progress.update(full_task, description="Full hashing/cache...")
 
-                    file_hash, was_cached = get_cached_full_hash(file, cache)
+                    file_hash, was_cached = get_cached_full_hash(record.path, cache)
+                    record.sha256 = file_hash
 
                     if was_cached:
                         cache_hits += 1
                     else:
                         cache_misses += 1
 
-                    by_full_hash[file_hash].append(file)
+                    by_full_hash[file_hash].append(record)
+
                     progress.advance(full_task)
 
-                for same_hash_files in by_full_hash.values():
-                    if len(same_hash_files) > 1:
+                for same_hash_records in by_full_hash.values():
+                    if len(same_hash_records) > 1:
+                        sorted_records = sort_duplicate_group(
+                            same_hash_records,
+                            keep=keep,
+                        )
+
                         duplicate_groups.append(
-                            sort_duplicate_group(same_hash_files, keep=keep)
+                            DuplicateGroup(
+                                keep=sorted_records[0],
+                                duplicates=sorted_records[1:],
+                            )
                         )
 
     save_cache(cache)
 
-    return DuplicateResult(
+    return ScanResult(
         groups=duplicate_groups,
+        files_scanned=len(records),
         cache_hits=cache_hits,
         cache_misses=cache_misses,
         quick_hashes=quick_hashes,

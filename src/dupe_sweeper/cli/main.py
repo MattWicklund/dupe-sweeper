@@ -9,13 +9,24 @@ from dupe_sweeper.engine.actions import delete_files, trash_files
 from dupe_sweeper.engine.cache import clear_cache, get_cache_stats
 from dupe_sweeper.engine.matcher import find_duplicates
 from dupe_sweeper.engine.scanner import scan_files
+from dupe_sweeper.models import DuplicateGroup
 
 console = Console()
 
 PHOTO_EXTENSIONS = [
-    "jpg", "jpeg", "png", "heic", "tif", "tiff",
-    "webp", "raw", "cr2", "nef", "arw",
+    "jpg",
+    "jpeg",
+    "png",
+    "heic",
+    "tif",
+    "tiff",
+    "webp",
+    "raw",
+    "cr2",
+    "nef",
+    "arw",
 ]
+
 
 def format_bytes(size: int) -> str:
     units = ["B", "KB", "MB", "GB", "TB"]
@@ -55,16 +66,13 @@ def build_summary_table(
     return table
 
 
-def print_duplicate_groups(duplicate_groups: list[list[Path]]) -> None:
+def print_duplicate_groups(duplicate_groups: list[DuplicateGroup]) -> None:
     for index, group in enumerate(duplicate_groups, start=1):
-        keep = group[0]
-        duplicates = group[1:]
-
         console.print(f"\n[bold]Group {index}[/bold]")
-        console.print(f"  [green]KEEP[/green] {keep}")
+        console.print(f"  [green]KEEP[/green] {group.keep.path}")
 
-        for duplicate in duplicates:
-            console.print(f"  [red]DUPE[/red] {duplicate}")
+        for duplicate in group.duplicates:
+            console.print(f"  [red]DUPE[/red] {duplicate.path}")
 
 
 def run_scan(args: argparse.Namespace) -> None:
@@ -82,14 +90,14 @@ def run_scan(args: argparse.Namespace) -> None:
         console.print(f"[red]Path is not a directory:[/red] {directory}")
         raise SystemExit(1)
 
+    extensions = PHOTO_EXTENSIONS if args.photos else args.ext
+
     console.print(
         Panel.fit(
             f"[bold]dupe-sweeper[/bold]\nScanning: {directory}",
             border_style="blue",
         )
     )
-
-    extensions = PHOTO_EXTENSIONS if args.photos else args.ext
 
     files = list(
         scan_files(
@@ -100,24 +108,23 @@ def run_scan(args: argparse.Namespace) -> None:
         )
     )
 
-    result = find_duplicates(files, keep=args.keep, show_progress=True)
+    result = find_duplicates(
+        files,
+        keep=args.keep,
+        show_progress=True,
+    )
+
     duplicate_groups = result.groups
-
-    duplicate_files = [
-        duplicate
-        for group in duplicate_groups
-        for duplicate in group[1:]
-    ]
-
-    recoverable_bytes = sum(file.stat().st_size for file in duplicate_files)
+    duplicate_files = result.duplicate_files
+    duplicate_paths = [record.path for record in duplicate_files]
 
     console.print()
     console.print(
         build_summary_table(
-            scanned_files=len(files),
+            scanned_files=result.files_scanned,
             duplicate_groups=len(duplicate_groups),
-            duplicate_files=len(duplicate_files),
-            recoverable_bytes=recoverable_bytes,
+            duplicate_files=result.duplicate_file_count,
+            recoverable_bytes=result.recoverable_bytes,
             quick_hashes=result.quick_hashes,
             full_hashes=result.full_hashes,
             cache_hits=result.cache_hits,
@@ -133,22 +140,22 @@ def run_scan(args: argparse.Namespace) -> None:
         return
 
     if args.trash:
-        trashed_count = trash_files(duplicate_files)
+        trashed_count = trash_files(duplicate_paths)
         console.print(f"\n[green]Moved {trashed_count} duplicate file(s) to Trash.[/green]")
     elif args.delete:
-        deleted_count = delete_files(duplicate_files)
+        deleted_count = delete_files(duplicate_paths)
         console.print(f"\n[red]Permanently deleted {deleted_count} duplicate file(s).[/red]")
     else:
         console.print(
-            "\n[yellow]Dry run only. "
-            "Re-run with --trash or --delete to remove duplicates."
-            "[/yellow]")
+            "\n[yellow]Dry run only. Re-run with --trash or --delete to remove duplicates.[/yellow]"
+        )
         console.print("[dim]Use --verbose to show every duplicate group.[/dim]")
 
 
 def run_cache_clear() -> None:
     clear_cache()
     console.print("[green]Cache cleared.[/green]")
+
 
 def run_cache_stats() -> None:
     stats = get_cache_stats()
@@ -157,11 +164,12 @@ def run_cache_stats() -> None:
     table.add_column("Metric", style="bold")
     table.add_column("Value", justify="right")
 
-    table.add_row("Cache path", stats["path"])
+    table.add_row("Cache path", str(stats["path"]))
     table.add_row("Entries", str(stats["entries"]))
     table.add_row("Size", format_bytes(int(stats["size_bytes"])))
 
     console.print(table)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -197,7 +205,6 @@ def main() -> None:
         nargs="+",
         help="Only scan files with these extensions, e.g. --ext jpg png pdf",
     )
-
     scan_parser.add_argument(
         "--photos",
         action="store_true",
@@ -210,7 +217,10 @@ def main() -> None:
     )
 
     cache_parser = subparsers.add_parser("cache", help="Manage the hash cache")
-    cache_subparsers = cache_parser.add_subparsers(dest="cache_command", required=True)
+    cache_subparsers = cache_parser.add_subparsers(
+        dest="cache_command",
+        required=True,
+    )
 
     cache_subparsers.add_parser("clear", help="Clear cached file hashes")
     cache_subparsers.add_parser("stats", help="Show cache statistics")
