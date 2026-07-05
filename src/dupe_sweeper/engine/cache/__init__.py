@@ -1,5 +1,6 @@
 from dupe_sweeper.engine.cache.base import CacheBackend, CacheStats
 from dupe_sweeper.engine.cache.json_cache import JsonCache
+from dupe_sweeper.engine.cache.sqlite_cache import SQLiteCache
 
 
 def create_cache() -> CacheBackend:
@@ -20,6 +21,7 @@ __all__ = [
     "CacheBackend",
     "CacheStats",
     "JsonCache",
+    "SQLiteCache",
     "clear_cache",
     "create_cache",
     "get_cache_stats",
