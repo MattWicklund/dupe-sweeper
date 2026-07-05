@@ -1,0 +1,6 @@
+send2trash>=1.8.3
+rich>=13.7.0
+
+[dev]
+pytest>=8.0.0
+ruff>=0.6.0

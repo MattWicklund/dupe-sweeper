@@ -1,0 +1,2 @@
+[console_scripts]
+dupe-sweeper = dupe_sweeper.cli.main:main

@@ -1,0 +1,30 @@
+[project]
+name = "dupe-sweeper"
+version = "0.1.0"
+description = "A safe, fast duplicate file finder."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "send2trash>=1.8.3",
+    "rich>=13.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+]
+
+[project.scripts]
+dupe-sweeper = "dupe_sweeper.cli.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
