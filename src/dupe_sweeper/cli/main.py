@@ -164,9 +164,9 @@ def run_cache_stats() -> None:
     table.add_column("Metric", style="bold")
     table.add_column("Value", justify="right")
 
-    table.add_row("Cache path", str(stats["path"]))
-    table.add_row("Entries", str(stats["entries"]))
-    table.add_row("Size", format_bytes(int(stats["size_bytes"])))
+    table.add_row("Cache path", stats.path)
+    table.add_row("Entries", str(stats.entries))
+    table.add_row("Size", format_bytes(stats.size_bytes))
 
     console.print(table)
 
